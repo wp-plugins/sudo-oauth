@@ -30,6 +30,9 @@ Please contact tucao@sudo.vn. Only me can create API.
 1. http://nguyencaotu.com/idsudo/images/Screenshot.jpg
 
 == Changelog ==
+= 1.0.3 =
+Update Set category for Author
+
 = 1.0.2 =
 Fixed bug hosting not install curl extension.
 

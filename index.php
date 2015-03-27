@@ -4,7 +4,7 @@ Plugin Name: Sudo Oauth
 Plugin URI: http://id.sudo.vn
 Description: Free Plugin supported connect to system id.sudo.vn - a system manager account. If you want build a system manager account for SEO, Manager staff please contact me.
 Author: caotu
-Version: 1.0.2
+Version: 1.0.3
 Author URI: http://sudo.vn
 */
 $dir_file = dirname(__FILE__);
@@ -34,6 +34,7 @@ function register_mysettings() {
         register_setting( 'sudooauth-settings-group', 'sudooauth_option_name' );
         register_setting( 'sudooauth-settings-group', 'sudooauth_option_pwd' );
         register_setting( 'sudooauth-settings-group', 'sudooauth_option_host' );
+        register_setting( 'sudooauth-settings-group', 'sudooauth_option_cat' );
 }
  
 function sudooauth_create_menu() {
@@ -56,6 +57,47 @@ function prevent_email_change( $errors, $update, $user ) {
         $user->user_email = $old->user_email;
 }
 /* Tu Cao: End  */  
+
+/* Restrict cat */
+function sudo_restrict_save_data( $user_id ) {
+	if ( ! current_user_can( 'add_users' ) )
+		return false;
+	update_user_meta( $user_id, '_sudo_access', get_option('sudooauth_option_cat') );
+}
+
+// check author có bị hạn chế ko ?
+function sudo_is_restrict() {
+	if ( get_user_meta(get_current_user_id(), '_sudo_access', true) > 0 )
+			return true;
+	else
+			return false;
+}
+/* tự động lưu danh mục hạn chế cho post của author */
+add_action( 'save_post', 'sudo_save_restrict_post' );
+function sudo_save_restrict_post( $post_id ) {
+	if ( ! wp_is_post_revision( $post_id ) && sudo_is_restrict() ){
+	remove_action('save_post', 'sudo_save_restrict_post');
+		wp_set_post_categories( $post_id, get_user_meta( get_current_user_id() , '_sudo_access', true) );
+	add_action('save_post', 'sudo_save_restrict_post');
+	}
+}
+/* cảnh báo */
+add_action( 'edit_form_after_title', 'sudo_restrict_warning' );
+function sudo_restrict_warning( $post_data = false ) {
+	if (sudo_is_restrict()) {
+		$c = get_user_meta( get_current_user_id() , '_sudo_access', true);
+		$data = get_category($c);
+		echo 'Bạn chỉ được phép đăng bài trong danh mục: <strong>'. $data->name .'</strong><br /><br />';
+	}
+}
+/* Xóa box chọn cate */
+function sudo_restrict_remove_meta_boxes() {
+	if (sudo_is_restrict() )
+		remove_meta_box('categorydiv', 'post', 'normal');
+}
+add_action( 'admin_menu', 'sudo_restrict_remove_meta_boxes' );
+/* End Restrict cat */
+
 function sudooauth_settings_page() {
 ?>
 <div class="wrap">
@@ -80,6 +122,32 @@ function sudooauth_settings_page() {
         <tr valign="top">
          <th scope="row">Host</th>
          <td><input type="text" name="sudooauth_option_host" value="<?php echo get_option('sudooauth_option_host') != '' ? get_option('sudooauth_option_host') : 'http://id.sudo.vn'; ?>" /></td>
+        </tr>
+        <tr valign="top">
+         <th scope="row">Hạn chế danh mục post</th>
+         <td>
+            <?php wp_dropdown_categories(array(
+                                 				'show_option_all'    => '',
+                                 				'show_option_none'   => '== Không hạn chế ==',
+                                 				'orderby'            => 'ID', 
+                                 				'order'              => 'ASC',
+                                 				'show_count'         => 0,
+                                 				'hide_empty'         => 0,
+                                 				'child_of'           => 0,
+                                 				'exclude'            => '',
+                                 				'echo'               => 1,
+                                 				'selected'           => get_option('sudooauth_option_cat'),
+                                 				'hierarchical'       => 0, 
+                                 				'name'               => 'sudooauth_option_cat',
+                                 				'id'                 => '',
+                                 				'class'              => 'postform',
+                                 				'depth'              => 0,
+                                 				'tab_index'          => 0,
+                                 				'taxonomy'           => 'category',
+                                 				'hide_if_empty'      => false,
+                                 				'walker'             => ''
+                                 			)); ?>
+         </td>
         </tr>
     </table>
     <?php submit_button(); ?>
