@@ -30,6 +30,9 @@ Please contact tucao@sudo.vn. Only me can create API.
 1. http://nguyencaotu.com/idsudo/images/Screenshot.jpg
 
 == Changelog ==
+= 1.0.4 =
+Fixed bug can't set restrict category
+
 = 1.0.3 =
 Update Set category for Author
 

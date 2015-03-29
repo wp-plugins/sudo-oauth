@@ -4,7 +4,7 @@ Plugin Name: Sudo Oauth
 Plugin URI: http://id.sudo.vn
 Description: Free Plugin supported connect to system id.sudo.vn - a system manager account. If you want build a system manager account for SEO, Manager staff please contact me.
 Author: caotu
-Version: 1.0.3
+Version: 1.0.4
 Author URI: http://sudo.vn
 */
 $dir_file = dirname(__FILE__);

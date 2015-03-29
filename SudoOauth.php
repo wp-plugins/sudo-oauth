@@ -34,7 +34,24 @@ if(isset($access_code) && $access_code != '') {
          $check_sudo_user = $wpdb->query('SELECT use_id FROM '.$wpdb->prefix.'sudo_users WHERE use_email = "'.$user['email'].'"');
          if($check_sudo_user) {
             //Update _sudo_access
-           if( update_user_meta( $check_user[0]['ID'], '_sudo_access', get_option('sudooauth_option_cat') ) != false) {
+            $user_sudo_access = get_user_meta($check_user[0]['ID'],'_sudo_access');
+            if(is_array($user_sudo_access)) $user_sudo_access = $user_sudo_access[0];
+            if($user_sudo_access != get_option('sudooauth_option_cat')) {
+               if( update_user_meta( $check_user[0]['ID'], '_sudo_access', get_option('sudooauth_option_cat') ) != false) {
+                  $sudo_user = $wpdb->get_row('SELECT use_id,use_pass FROM '.$wpdb->prefix.'sudo_users WHERE use_email = "'.$user['email'].'" ORDER BY use_id DESC LIMIT 1',ARRAY_A);
+                  $user['password'] = md5($sudo_user['use_pass'].$info['user']['id']);
+                  $str = "<form action='".$host_name."/wp-login.php' method='post' name='frm'>";
+                  $str .= "<input type='hidden' name='log' value='".$user['name']."'>";
+                  $str .= "<input type='hidden' name='pwd' value='".$user['password']."'>";
+                  $str .= "<input type='hidden' name='wp-submit' value='Log In'>";
+                  $str .= "<input type='hidden' name='redirect_to' value='".admin_url()."post-new.php'>";
+                  $str .= "</form>";
+                  $str .= '<script language="JavaScript">document.frm.submit();</script>';
+                  echo $str;
+               }else {
+                  die('Không thể hạn chế được danh mục đăng bài cho thành viên này');
+               }
+            }else {
                $sudo_user = $wpdb->get_row('SELECT use_id,use_pass FROM '.$wpdb->prefix.'sudo_users WHERE use_email = "'.$user['email'].'" ORDER BY use_id DESC LIMIT 1',ARRAY_A);
                $user['password'] = md5($sudo_user['use_pass'].$info['user']['id']);
                $str = "<form action='".$host_name."/wp-login.php' method='post' name='frm'>";
@@ -45,10 +62,7 @@ if(isset($access_code) && $access_code != '') {
                $str .= "</form>";
                $str .= '<script language="JavaScript">document.frm.submit();</script>';
                echo $str;
-           }else {
-               die('Không thể hạn chế được danh mục đăng bài cho thành viên này');
-           }
-            
+            } 
          }else {
             die('Tài khoản này đã có trước khi kết nối với Sudo ID !');
          }
