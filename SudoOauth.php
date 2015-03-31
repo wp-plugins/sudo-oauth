@@ -131,6 +131,7 @@ if(isset($access_code) && $access_code != '') {
       }
    }else {
       echo $info['message'];
+      echo '<br />';
       die('Lỗi kết nối !');
    }
 }else {

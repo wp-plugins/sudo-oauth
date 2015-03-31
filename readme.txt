@@ -30,6 +30,9 @@ Please contact tucao@sudo.vn. Only me can create API.
 1. http://nguyencaotu.com/idsudo/images/Screenshot.jpg
 
 == Changelog ==
+= 1.0.5 =
+Update set restrict multi category and add limit posts per day with user connect from id system
+
 = 1.0.4 =
 Fixed bug can't set restrict category
 

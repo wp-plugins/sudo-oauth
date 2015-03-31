@@ -4,7 +4,7 @@ Plugin Name: Sudo Oauth
 Plugin URI: http://id.sudo.vn
 Description: Free Plugin supported connect to system id.sudo.vn - a system manager account. If you want build a system manager account for SEO, Manager staff please contact me.
 Author: caotu
-Version: 1.0.4
+Version: 1.0.5
 Author URI: http://sudo.vn
 */
 $dir_file = dirname(__FILE__);
@@ -34,7 +34,8 @@ function register_mysettings() {
         register_setting( 'sudooauth-settings-group', 'sudooauth_option_name' );
         register_setting( 'sudooauth-settings-group', 'sudooauth_option_pwd' );
         register_setting( 'sudooauth-settings-group', 'sudooauth_option_host' );
-        register_setting( 'sudooauth-settings-group', 'sudooauth_option_cat' );
+        register_setting( 'sudooauth-settings-group', 'sudooauth_option_multicat' );
+        register_setting( 'sudooauth-settings-group', 'sudooauth_option_limitpost' );
 }
  
 function sudooauth_create_menu() {
@@ -59,46 +60,72 @@ function prevent_email_change( $errors, $update, $user ) {
 /* Tu Cao: End  */  
 
 /* Restrict cat */
-function sudo_restrict_save_data( $user_id ) {
-	if ( ! current_user_can( 'add_users' ) )
-		return false;
-	update_user_meta( $user_id, '_sudo_access', get_option('sudooauth_option_cat') );
+add_filter( 'list_terms_exclusions', 'sudo_exclusions_terms' );
+function sudo_exclusions_terms() {
+   $excluded = '';
+   $current_user = wp_get_current_user();
+   if(strpos($current_user->user_email,'@sudo.vn')) {
+      $multicat_settings = get_option('sudooauth_option_multicat');
+      if ( $multicat_settings != false ) {
+         $str_cat_list = '';
+         foreach($multicat_settings as $value) {
+            $str_cat_list .= $value.',';
+         }
+         $str_cat_list = rtrim($str_cat_list,',');
+         $excluded = " AND ( t.term_id IN ( $str_cat_list ) OR tt.taxonomy NOT IN ( 'category' ) )";
+      }
+   }
+   return $excluded;
 }
-
-// check author có bị hạn chế ko ?
-function sudo_is_restrict() {
-	if ( get_user_meta(get_current_user_id(), '_sudo_access', true) > 0 )
-			return true;
-	else
-			return false;
-}
-/* tự động lưu danh mục hạn chế cho post của author */
-add_action( 'save_post', 'sudo_save_restrict_post' );
-function sudo_save_restrict_post( $post_id ) {
-	if ( ! wp_is_post_revision( $post_id ) && sudo_is_restrict() ){
-	remove_action('save_post', 'sudo_save_restrict_post');
-		wp_set_post_categories( $post_id, get_user_meta( get_current_user_id() , '_sudo_access', true) );
-	add_action('save_post', 'sudo_save_restrict_post');
-	}
-}
-/* cảnh báo */
-add_action( 'edit_form_after_title', 'sudo_restrict_warning' );
-function sudo_restrict_warning( $post_data = false ) {
-	if (sudo_is_restrict()) {
-		$c = get_user_meta( get_current_user_id() , '_sudo_access', true);
-		$data = get_category($c);
-		echo 'Bạn chỉ được phép đăng bài trong danh mục: <strong>'. $data->name .'</strong><br /><br />';
-	}
-}
-/* Xóa box chọn cate */
-function sudo_restrict_remove_meta_boxes() {
-	if (sudo_is_restrict() )
-		remove_meta_box('categorydiv', 'post', 'normal');
-}
-add_action( 'admin_menu', 'sudo_restrict_remove_meta_boxes' );
 /* End Restrict cat */
 
-function sudooauth_settings_page() {
+/* One post per day */
+add_action( 'admin_init', 'sudo_post_per_day_limit' );
+function sudo_post_per_day_limit() {
+   $current_user = wp_get_current_user();
+   if(strpos($current_user->user_email,'@sudo.vn')) {
+      global $wpdb;
+      $tz = new DateTimeZone('Asia/Bangkok');
+      $time_current_sv = new DateTime();
+      $time_current_sv_str = $time_current_sv->format('Y-m-d H:i:s');
+      $time_current_sv_int = $time_current_sv->getTimestamp();
+      
+      $time_current_sv->setTimeZone($tz);
+      $time_current_tz_str = $time_current_sv->format('Y-m-d H:i:s');
+      $time_current_tz = new DateTime($time_current_tz_str);
+      $time_current_tz_int = $time_current_tz->getTimestamp();
+      
+      $time_start_tz_str = $time_current_sv->format('Y-m-d 00:00:01');
+      $time_start_tz = new DateTime($time_start_tz_str);
+      $time_start_tz_int = $time_start_tz->getTimestamp();
+      
+      $time_start_sv_int = $time_current_sv_int - $time_current_tz_int + $time_start_tz_int;
+      $time_start_sv_str = date('Y-m-d H:i:s',$time_start_sv_int);
+      $time_start_sv = new DateTime($time_start_sv_str);
+      
+      $count_post_today = $wpdb->get_var("SELECT COUNT(ID)
+                                          FROM $wpdb->posts 
+                                          WHERE post_status = 'publish'
+                                          AND post_author = $current_user->ID 
+                                          AND post_type NOT IN('attachment','revision')
+                                          AND post_date_gmt >= '$time_start_sv_str'");
+                                          
+      if($count_post_today >= get_option('sudooauth_option_limitpost',1)) {
+         global $pagenow;
+         /* Check current admin page. */
+         if($pagenow == 'post-new.php'){
+            echo '<meta http-equiv="Content-Type" content="text/html"; charset="utf-8">';
+            echo "<center>";
+            echo '<br /><br />Giới hạn '.get_option('sudooauth_option_limitpost',1).' bài 1 ngày.<br /><br /> Hôm nay bạn đã đăng đủ bài trên trang này rồi.<br /><br /> Vui lòng quay lại vào ngày mai, xin cám ơn!';
+            echo "</center>";
+            exit();
+         }
+      }
+   }
+}
+/* End One post per day */
+
+function sudooauth_settings_page() {   
 ?>
 <div class="wrap">
 <h2>Thông tin client kết nối với ID</h2>
@@ -124,33 +151,85 @@ function sudooauth_settings_page() {
          <td><input type="text" name="sudooauth_option_host" value="<?php echo get_option('sudooauth_option_host') != '' ? get_option('sudooauth_option_host') : 'http://id.sudo.vn'; ?>" /></td>
         </tr>
         <tr valign="top">
-         <th scope="row">Hạn chế danh mục post</th>
+         <th scope="row">Tài khoản kết nối được đăng bao nhiêu bài một ngày</th>
+         <td><input type="text" name="sudooauth_option_limitpost" value="<?php echo get_option('sudooauth_option_limitpost') != '' ? get_option('sudooauth_option_limitpost') : '1'; ?>" /></td>
+        </tr>
+        <tr valign="top">
+         <th scope="row">Chọn danh mục tài khoản kết nối được phép post bài</th>
          <td>
-            <?php wp_dropdown_categories(array(
-                                 				'show_option_all'    => '',
-                                 				'show_option_none'   => '== Không hạn chế ==',
-                                 				'orderby'            => 'ID', 
-                                 				'order'              => 'ASC',
-                                 				'show_count'         => 0,
-                                 				'hide_empty'         => 0,
-                                 				'child_of'           => 0,
-                                 				'exclude'            => '',
-                                 				'echo'               => 1,
-                                 				'selected'           => get_option('sudooauth_option_cat'),
-                                 				'hierarchical'       => 0, 
-                                 				'name'               => 'sudooauth_option_cat',
-                                 				'id'                 => '',
-                                 				'class'              => 'postform',
-                                 				'depth'              => 0,
-                                 				'tab_index'          => 0,
-                                 				'taxonomy'           => 'category',
-                                 				'hide_if_empty'      => false,
-                                 				'walker'             => ''
-                                 			)); ?>
+         <?php
+         $walker = new Sudo_Walker_Category_Checklist();
+         $settings = get_option('sudooauth_option_multicat');
+         if ( isset( $settings) && is_array( $settings) )
+				$selected = $settings;
+			else
+				$selected = array();
+         ?>
+            <div id="side-sortables" class="metabox-holder" style="float:left; padding:5px;">
+   				<div class="postbox">
+   					<h3 class="hndle"><span>Giới hạn đa danh mục</span></h3>
+   
+   	            <div class="inside" style="padding:0 10px;">
+   						<div class="taxonomydiv">
+   							<div id="id-all" class="tabs-panel tabs-panel-active">
+   								<ul class="categorychecklist form-no-clear">
+   								<?php
+   									wp_list_categories(
+   										array(
+   										'selected_cats'  => $selected,
+   										'options_name'   => 'sudooauth_option_multicat',
+   										'hide_empty'     => 0,
+   										'title_li'       => '',
+   										'walker'         => $walker
+   										)
+   									);
+   								?>
+   	                     </ul>
+   							</div>
+   						</div>
+   					</div>
+   				</div>
+   			</div>
          </td>
         </tr>
     </table>
     <?php submit_button(); ?>
 </form>
 </div>
-<?php } ?>
+<?php 
+} 
+
+
+class Sudo_Walker_Category_Checklist extends Walker {
+	var $tree_type = 'category';
+	var $db_fields = array ('parent' => 'parent', 'id' => 'term_id'); //TODO: decouple this
+
+	function start_lvl( &$output, $depth = 0, $args = array() ) {
+		$indent = str_repeat("\t", $depth);
+		$output .= "$indent<ul class='children'>\n";
+	}
+
+	function end_lvl( &$output, $depth = 0, $args = array() ) {
+		$indent = str_repeat("\t", $depth);
+		$output .= "$indent</ul>\n";
+	}
+
+	function start_el( &$output, $category, $depth = 0, $args = array(), $current_object_id = 0 ) {
+		extract($args);
+
+		if ( empty( $taxonomy ) )
+			$taxonomy = 'category';
+
+		$output .= sprintf(
+			'<li id="category-%1$d"><label class="selectit"><input value="%1$s" type="checkbox" name="sudooauth_option_multicat[]" %2$s /> %3$s</label>',
+			$category->term_id,
+			checked( in_array( $category->term_id, $selected_cats ), true, false ),
+			esc_html( apply_filters( 'the_category', $category->name ) )
+		);
+	}
+
+	function end_el( &$output, $category, $depth = 0, $args= array() ) {
+		$output .= "</li>\n";
+	}
+}
+?>
