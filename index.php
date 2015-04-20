@@ -4,7 +4,7 @@ Plugin Name: Sudo Oauth
 Plugin URI: http://id.sudo.vn
 Description: Free Plugin supported connect to system id.sudo.vn - a system manager account. If you want build a system manager account for SEO, Manager staff please contact me.
 Author: caotu
-Version: 1.0.5
+Version: 1.0.6
 Author URI: http://sudo.vn
 */
 $dir_file = dirname(__FILE__);
@@ -86,22 +86,22 @@ function sudo_post_per_day_limit() {
    if(strpos($current_user->user_email,'@sudo.vn')) {
       global $wpdb;
       $tz = new DateTimeZone('Asia/Bangkok');
-      $time_current_sv = new DateTime();
+      $time_current_sv = new SudoDateTime();
       $time_current_sv_str = $time_current_sv->format('Y-m-d H:i:s');
       $time_current_sv_int = $time_current_sv->getTimestamp();
       
       $time_current_sv->setTimeZone($tz);
       $time_current_tz_str = $time_current_sv->format('Y-m-d H:i:s');
-      $time_current_tz = new DateTime($time_current_tz_str);
+      $time_current_tz = new SudoDateTime($time_current_tz_str);
       $time_current_tz_int = $time_current_tz->getTimestamp();
       
       $time_start_tz_str = $time_current_sv->format('Y-m-d 00:00:01');
-      $time_start_tz = new DateTime($time_start_tz_str);
+      $time_start_tz = new SudoDateTime($time_start_tz_str);
       $time_start_tz_int = $time_start_tz->getTimestamp();
       
       $time_start_sv_int = $time_current_sv_int - $time_current_tz_int + $time_start_tz_int;
       $time_start_sv_str = date('Y-m-d H:i:s',$time_start_sv_int);
-      $time_start_sv = new DateTime($time_start_sv_str);
+      $time_start_sv = new SudoDateTime($time_start_sv_str);
       
       $count_post_today = $wpdb->get_var("SELECT COUNT(ID)
                                           FROM $wpdb->posts 
@@ -231,5 +231,21 @@ class Sudo_Walker_Category_Checklist extends Walker {
 	function end_el( &$output, $category, $depth = 0, $args= array() ) {
 		$output .= "</li>\n";
 	}
+}
+
+//Sudo replace datetime for php version lower 5.3
+class SudoDateTime extends DateTime
+{
+    public function setTimestamp( $timestamp )
+    {
+        $date = getdate( ( int ) $timestamp );
+        $this->setDate( $date['year'] , $date['mon'] , $date['mday'] );
+        $this->setTime( $date['hours'] , $date['minutes'] , $date['seconds'] );
+    }
+
+    public function getTimestamp()
+    {
+        return $this->format( 'U' );
+    }
 }
 ?>
